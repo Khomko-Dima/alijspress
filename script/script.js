@@ -7,14 +7,11 @@ document.addEventListener('DOMContentLoaded', function(){
 	}
 
 	const search = document.querySelector('.search');
-
 	const cartBtn = document.getElementById('cart');
 	const wishlistBtn =document.getElementById('wishlist');
-
 	const goodsWrapper = document.querySelector('.goods-wrapper');
 	const cart = document.querySelector('.cart');
-
-
+	const category = document.querySelector('.category');
 
 	const createCardGoods = (id, title, price, img) => {
 		const card = document.createElement('div');
@@ -41,34 +38,62 @@ document.addEventListener('DOMContentLoaded', function(){
 		return card;
 	};
 
-
-	goodsWrapper.appendChild(createCardGoods(1, 'Дартс', 2000, 'img/temp/Archer.jpg'));
-	goodsWrapper.appendChild(createCardGoods(2, 'Фламинго', 3000, 'img/temp/Flamingo.jpg'));
-	goodsWrapper.appendChild(createCardGoods(3, 'Носки', 333, 'img/temp/Socks.jpg'));
-
-	const closeCart = (e) => {
-		const target = event.target;
-		if(target === cart || target.classList.contains('cart-close')){
-			cart.style.display = '';
-		}
+	const renderCard = (items) =>{
+		goodsWrapper.textContent = '';
+		items.forEach(({ id, title, price, imgMin }) => {
+			goodsWrapper.appendChild(createCardGoods(id, title, price, imgMin));
+		})
 	};
 
+	const closeCart = (e) => {
+		const target = e.target;
+		if (target === cart ||
+			target.classList.contains('cart-close') ||
+			e.keyCode === 27) {
+				cart.style.display = '';
+				document.removeEventListener('keyup', closeCart);
+		}
+	};
 	const opneCart = (e) => {
 		e.preventDefault();
 		cart.style.display = 'flex';
-		cart.classList.add('active');
+		document.addEventListener('keyup', closeCart);
 	};
+
+
+	const getGoods = (handler, filter) => {
+		fetch('db/db.json')
+			.then(response => response.json())
+			.then(filter)
+			.then(handler);
+	};
+
+	const randowSort = (item) => {
+		return item.sort(() => Math.random() - 0.5);
+	}
+
+	const choiceCategory = (e) => {
+		e.preventDefault();
+		const target = e.target;
+		
+		if (target.classList.contains('category-item')) {
+			const category = target.dataset.category;
+			getGoods(renderCard, 
+					(goods) => goods.filter((item) => item.category.includes(category)));
+		}
+
+	}
+
+
+
 
 	cartBtn.addEventListener('click', opneCart);
 	cart.addEventListener('click', closeCart);
+	category.addEventListener('click', choiceCategory);
 
-	document.addEventListener('keydown', (e) => {
-		const target = KeyboardEvent.code;
-		if(cart.classList.contains('active')){
-			cart.style.display = '';
-			cart.classList.remove('active');
-		}
-	});
+
+
+	getGoods(renderCard, randowSort);
 
 
 
@@ -76,24 +101,6 @@ document.addEventListener('DOMContentLoaded', function(){
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
 
 
 
