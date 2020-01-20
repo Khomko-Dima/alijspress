@@ -14,14 +14,31 @@ document.addEventListener('DOMContentLoaded', function(){
 
 
 	const wishlist = [];
-	let goodsBasket = {};
+	const goodsBasket = {};
 
-	const loading = () => {
-		goodsWrapper.innerHTML = `<div id="spinner">
+	const loading = (nameFunc) => {
+		const spiner = `<div id="spinner">
 			<div class="spinner-loading"><div><div><div></div>
 			</div><div><div></div></div><div><div></div></div>
-			<div><div></div></div></div></div></div>`
+			<div><div></div></div></div></div></div>`;
+		if (nameFunc === 'renderCard'){
+			goodsWrapper.innerHTML = spiner;
+		}
+		if (nameFunc === 'renderBasket') {
+			cartWrapper.innerHTML = spiner;
+		}
 	};
+
+	// Запрос на сервер
+	const getGoods = (handler, filter) => {
+		loading(handler.name);
+		fetch('db/db.json')
+			.then(response => response.json())
+			.then(filter)
+			.then(handler);
+	};
+
+	// Герация карточек
 	const createCardGoods = (id, title, price, img) => {
 		const card = document.createElement('div');
 		card.className = 'card-wrapper col-12 col-md-6 col-lg-4 col-xl-3 pb-3';
@@ -46,18 +63,6 @@ document.addEventListener('DOMContentLoaded', function(){
 						</div>`;
 		return card;
 	};
-	const renderCard = (items) =>{
-		goodsWrapper.textContent = '';
-
-		if (items.length) {
-			items.forEach(({ id, title, price, imgMin }) => {
-				goodsWrapper.appendChild(createCardGoods(id, title, price, imgMin));
-			})
-		} else {
-			goodsWrapper.textContent = 'Извените мы не нашли товаров по вашему запросу';
-		}	
-	};
-	//render корзины
 	const createCardGoodsBasket = (id, title, price, img) => {
 		const card = document.createElement('div');
 		card.className = 'goods';
@@ -73,15 +78,27 @@ document.addEventListener('DOMContentLoaded', function(){
 					<div class="goods-price-count">
 						<div class="goods-trigger">
 							<button 
-								class="goods-add-wishlist" 
-								data-goods-id="${id}"
-								${wishlist.includes(id) ? 'active' : ''}>
+								class="goods-add-wishlist ${wishlist.includes(id) ? 'active' : ''}" 
+								data-goods-id="${id}">
 							</button>
 							<button class="goods-delete" data-goods-id="${id}"></button>
 						</div>
-						<div class="goods-count">1</div>
+						<div class="goods-count">${goodsBasket[id]}</div>
 					</div>`;
 		return card;
+	};
+	
+	// рендеры карточек
+	const renderCard = (items) =>{
+		goodsWrapper.textContent = '';
+
+		if (items.length) {
+			items.forEach(({ id, title, price, imgMin }) => {
+				goodsWrapper.appendChild(createCardGoods(id, title, price, imgMin));
+			})
+		} else {
+			goodsWrapper.textContent = 'Извените мы не нашли товаров по вашему запросу';
+		}	
 	};
 	const renderBasket = (items) =>{
 		cartWrapper.textContent = '';
@@ -94,8 +111,68 @@ document.addEventListener('DOMContentLoaded', function(){
 			cartWrapper.innerHTML = '<div id="cart-empty">Ваша корзина пока пуста</div>';
 		}	
 	};
-	// /render корзины
 
+	//калькуляция
+	const calcTotalPrice = (goods) => {
+		let sum = 0;
+		for (const item of goods) {
+			sum += item.price * goodsBasket[item.id];
+		}
+		cart.querySelector('.cart-total>span').textContent = sum.toFixed(2);
+	};
+	const chechCount = () => {
+		whishListCounter.textContent = wishlist.length;
+		cardCounter.textContent = Object.keys(goodsBasket).length; //возвращает массив ключей
+	};
+
+	//фильтры
+	const showCardBasket = (goods) => {
+		const backetGoods = goods.filter(item => goodsBasket.hasOwnProperty(item.id)); //поиск в объекте по id
+		calcTotalPrice(backetGoods);
+		return backetGoods
+	};
+	const randowSort = (item) => {
+
+		return item.sort(() => Math.random() - 0.5);
+	};
+	const showWishlist = () => {
+
+		getGoods(renderCard, goods => goods.filter(item => wishlist.includes(item.id)));
+	};
+
+	//работа с хронилащами
+	const getCookie = (name) => {
+		// возвращает куки с указанным name,
+		// или undefined, если ничего не найдено
+		let matches = document.cookie.match(new RegExp(
+			"(?:^|; )" + name.replace(/([\.$?*|{}\(\)\[\]\\\/\+^])/g, '\\$1') + "=([^;]*)"
+		));
+		return matches ? decodeURIComponent(matches[1]) : undefined;
+	}
+	const cookieQuery = (get) => {
+		if (get) {
+			if (getCookie('goodsBasket')) {
+				Object.assign(goodsBasket, JSON.parse(getCookie('goodsBasket')));
+				// goodsBasket = JSON.parse(getCookie('goodsBasket'));
+			}
+			chechCount();
+		} else {
+			document.cookie = `goodsBasket=${JSON.stringify(goodsBasket)}; max-age=86400e3`;
+		}
+	}
+	const storageQuery = (get) => {
+		if (get) {
+			if (localStorage.getItem('whishlist')) {
+				wishlist.push(...JSON.parse(localStorage.getItem('whishlist')));
+				// JSON.parse(localStorage.getItem('whishlist')).forEach(id => wishlist.push(id));
+			}
+			chechCount();
+		} else {
+			localStorage.setItem('whishlist', JSON.stringify(wishlist));
+		}
+	};
+
+	//события
 	const closeCart = (e) => {
 		const target = e.target;
 		if (target === cart ||
@@ -105,26 +182,11 @@ document.addEventListener('DOMContentLoaded', function(){
 				document.removeEventListener('keyup', closeCart);
 		}
 	};
-
-	const showCardBasket = (goods) => goods.filter(item => goodsBasket.hasOwnProperty(item.id)); //поиск в объекте по id
-
-
 	const opneCart = (e) => {
 		e.preventDefault();
 		cart.style.display = 'flex';
 		document.addEventListener('keyup', closeCart);
 		getGoods(renderBasket, showCardBasket);
-	};
-	const getGoods = (handler, filter) => {
-		loading();
-		fetch('db/db.json')
-			.then(response => response.json())
-			.then(filter)
-			.then(handler);
-	};
-	const randowSort = (item) => {
-
-		return item.sort(() => Math.random() - 0.5);
 	};
 	const choiceCategory = (e) => {
 		e.preventDefault();
@@ -154,41 +216,6 @@ document.addEventListener('DOMContentLoaded', function(){
 
 		input.value = '';
 	};
-
-	// возвращает куки с указанным name,
-	// или undefined, если ничего не найдено
-	const getCookie = (name) => {
-		let matches = document.cookie.match(new RegExp(
-			"(?:^|; )" + name.replace(/([\.$?*|{}\(\)\[\]\\\/\+^])/g, '\\$1') + "=([^;]*)"
-		));
-		return matches ? decodeURIComponent(matches[1]) : undefined;
-	}
-
-	const cookieQuery = (get) => {
-		if (get) {
-			goodsBasket = JSON.parse(getCookie('goodsBasket'));
-			chechCount();
-		} else {
-			document.cookie = `goodsBasket=${JSON.stringify(goodsBasket)}; max-age=86400e3`;
-		}
-	}
-
-	const chechCount = () => {
-		whishListCounter.textContent = wishlist.length;
-		cardCounter.textContent = Object.keys(goodsBasket).length; //возвращает массив ключей
-	};
-
-	const storageQuery = (get) => {
-		if (get) {
-			if (localStorage.getItem('whishlist')) {
-				JSON.parse(localStorage.getItem('whishlist')).forEach(id => wishlist.push(id));
-			}
-			chechCount();
-		} else {
-			localStorage.setItem('whishlist', JSON.stringify(wishlist));
-		}
-	};
-
 	const toogleWhishList = (id, elem) => {
 		if (wishlist.includes(id)) { //проверка или есть в массиве
 			wishlist.splice(wishlist.indexOf(id), 1);
@@ -200,7 +227,6 @@ document.addEventListener('DOMContentLoaded', function(){
 		chechCount();
 		storageQuery();
 	};
-
 	const addBasket = (id) => {
 		if (goodsBasket[id]) {
 			goodsBasket[id] += 1;
@@ -210,7 +236,15 @@ document.addEventListener('DOMContentLoaded', function(){
 		chechCount();
 		cookieQuery();
 	};
+	const removeGoods = (id) => {
+		delete goodsBasket[id];
+		chechCount();
+		cookieQuery();
+		getGoods(renderBasket, showCardBasket);
+	};
 
+	
+	//handler
 	const handlerGoods = (e) => {
 		const target = e.target;
 
@@ -221,25 +255,28 @@ document.addEventListener('DOMContentLoaded', function(){
 			addBasket(target.dataset.goodsId);
 		}
 	};
-	const showWishlist = () => {
-
-		getGoods(renderCard, goods => goods.filter(item => wishlist.includes(item.id)));
+	const handlerBasket = (e) => {
+		const target = e.target;
+		if (target.classList.contains('goods-add-wishlist')) {
+			toogleWhishList(target.dataset.goodsId, target);
+		}
+		if (target.classList.contains('goods-delete')) {
+			removeGoods(target.dataset.goodsId);
+		}
 	};
 
-
-
-
-	cartBtn.addEventListener('click', opneCart);
-	cart.addEventListener('click', closeCart);
-	category.addEventListener('click', choiceCategory);
-	search.addEventListener('submit', searchGoods);
-	goodsWrapper.addEventListener('click', handlerGoods);
-	wishlistBtn.addEventListener('click', showWishlist);
-
-
-
-	getGoods(renderCard, randowSort);
-	storageQuery(true);
-	cookieQuery(true);
-
+	//инициализация
+	{
+		getGoods(renderCard, randowSort);
+		storageQuery(true);
+		cookieQuery(true);
+	
+		cartBtn.addEventListener('click', opneCart);
+		cart.addEventListener('click', closeCart);
+		category.addEventListener('click', choiceCategory);
+		search.addEventListener('submit', searchGoods);
+		goodsWrapper.addEventListener('click', handlerGoods);
+		cartWrapper.addEventListener('click', handlerBasket);
+		wishlistBtn.addEventListener('click', showWishlist);
+	}
 });
